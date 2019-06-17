@@ -11,7 +11,7 @@ from flask_restful import Resource, reqparse
 parser = reqparse.RequestParser()
 parser.add_argument('search_by')
 parser.add_argument('query', action='append')
-parser.add_argument('accuracy', type=float)
+parser.add_argument('accuracy', type=float, required=False)
 
 DSSTOX_PATH = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'database/dsstox_reduced.db'))
 EXPOCAST_PATH = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'database/expocast.db'))
@@ -29,17 +29,19 @@ class DsstoxBatchSearch(Resource):
         logging.info("=========== NTA batch search received ===========")
         args = parser.parse_args()
         search_by = args['search_by']
-        query = args['query']
+        query = list(args['query'])
         print(query)
-        accuracy = args['accuracy']
         result = None
         db_connection = Dsstox_DB(DSSTOX_PATH)
         if search_by == "mass":
+            accuracy = args['accuracy']
+            if accuracy is None:
+                return jsonify({"Error": "If searching by mass, the 'accuracy' parameter must be provided in ppm"})
             result = db_connection.mass_search(query, accuracy)
         elif search_by == "formula":
             result = db_connection.formula_search(query)
         else:
-            return jsonify({'Error': 'search_by must be either  "mass" or "formula"'})
+            return jsonify({"Error": "search_by must be either  'mass' or 'formula'"})
         return result
 
 
@@ -91,12 +93,13 @@ class Dsstox_DB:
                                 JOIN generic_substances as gs ON gsc.fk_generic_substance_id = gs.id
                                 JOIN compound_relationships as cr ON cr.fk_compound_id_predecessor = c.id
                                 JOIN compounds as c_suc ON c_suc.id = cr.fk_compound_id_successor
-                                JOIN source_generic_substance_mappings as sgsm ON sgsm.fk_generic_substance_id = gs.id
-                                JOIN source_substances as ss ON ss.id = sgsm.fk_source_substance_id
-                                JOIN assay.chemical_assay_count as cac ON cac.chid = gs.id
-                                JOIN expocast.expocast_models as em ON em.casrn = gs.casrn 
+                                LEFT JOIN source_generic_substance_mappings as sgsm ON sgsm.fk_generic_substance_id = gs.id
+                                LEFT JOIN source_substances as ss ON ss.id = sgsm.fk_source_substance_id
+                                LEFT JOIN assay.chemical_assay_count as cac ON cac.chid = gs.id
+                                LEFT JOIN expocast.expocast_models as em ON em.casrn = gs.casrn 
                                 WHERE abs(c_suc.monoisotopic_mass - ?) < ? AND cr.fk_compound_relationship_type_id == 2
                                 AND c.has_defined_isotope == 0
+                                GROUP BY c.id
                                 ORDER BY DATA_SOURCES DESC;
                                 ''', (mass, accuracy))
             logging.info("=========== Parsing results ===========")
@@ -120,6 +123,9 @@ class Dsstox_DB:
             columns=['INPUT', 'DTXSID', 'PREFERRED_NAME', 'CASRN', 'INCHIKEY', 'IUPAC_NAME', 'MOLECULAR_FORMULA',
                      'MONOISOTOPIC_MASS', 'EXPOCAST_MEDIAN_EXPOSURE_PREDICTION_MG/KG-BW/DAY', 'EXPOCAST', 'NHANES',
                      'DATA_SOURCES', 'TOXCAST_PERCENT_ACTIVE', 'TOXCAST_NUMBER_OF_ASSAYS/TOTAL'])
+            #columns=['INPUT', 'DTXSID', 'PREFERRED_NAME', 'CASRN', 'INCHIKEY', 'IUPAC_NAME', 'MOLECULAR_FORMULA',
+            #                  'MONOISOTOPIC_MASS', 'EXPOCAST_MEDIAN_EXPOSURE_PREDICTION_MG/KG-BW/DAY', 'EXPOCAST', 'NHANES',
+            #                  'TOXCAST_PERCENT_ACTIVE', 'TOXCAST_NUMBER_OF_ASSAYS/TOTAL'])
         logging.info("=========== Searching Dsstox DB ===========")
         for i, formula in enumerate(query):
             cursor = self.c.execute('''
@@ -141,18 +147,19 @@ class Dsstox_DB:
                                             FROM compounds as c
                                             JOIN generic_substance_compounds as gsc ON c.id = gsc.fk_compound_id
                                             JOIN generic_substances as gs ON gsc.fk_generic_substance_id = gs.id
-                                            JOIN source_generic_substance_mappings as sgsm ON sgsm.fk_generic_substance_id = gs.id
-                                            JOIN source_substances as ss ON ss.id = sgsm.fk_source_substance_id
-                                            JOIN assay.chemical_assay_count as cac ON cac.chid = gs.id
-                                            JOIN expocast.expocast_models as em ON em.casrn = gs.casrn 
-                                            WHERE gs.mol_formula == formula
+                                            LEFT JOIN source_generic_substance_mappings as sgsm ON sgsm.fk_generic_substance_id = gs.id
+                                            LEFT JOIN source_substances as ss ON ss.id = sgsm.fk_source_substance_id
+                                            LEFT JOIN assay.chemical_assay_count as cac ON cac.chid = gs.id
+                                            LEFT JOIN expocast.expocast_models as em ON em.casrn = gs.casrn
+                                            WHERE c.mol_formula == ?
+                                            GROUP BY c.id
                                             ORDER BY DATA_SOURCES DESC;
-                                            ''', (formula))
+                                            ''', (formula,))
             logging.info("=========== Parsing results ===========")
             for row in cursor:
                 ind = len(db_results.index)
-            print(ind)
-            db_results.loc[ind] = (formula,) + row
+                print(ind)
+                db_results.loc[ind] = (formula,) + row
         logging.info("=========== Search complete ===========")
         # db_results['INPUT'] = query
         db_results['FOUND_BY'] = 'Exact Formula'
