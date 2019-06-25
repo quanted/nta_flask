@@ -30,7 +30,6 @@ class DsstoxBatchSearch(Resource):
         args = parser.parse_args()
         search_by = args['search_by']
         query = list(args['query'])
-        print(query)
         result = None
         db_connection = Dsstox_DB(DSSTOX_PATH)
         if search_by == "mass":
@@ -105,7 +104,6 @@ class Dsstox_DB:
             logging.info("=========== Parsing results ===========")
             for row in cursor:
                 ind = len(db_results.index)
-                print(ind)
                 db_results.loc[ind] = (mass,) + row
         logging.info("=========== Search complete ===========")
         #db_results['INPUT'] = query
@@ -113,7 +111,7 @@ class Dsstox_DB:
                                                   db_results['MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT'].astype(float))
         db_results['FOUND_BY'] = 'Monoisotopic Mass'
         results_db_dict = db_results.to_dict(orient='list')
-        return jsonify(results_db_dict)
+        return jsonify({'results': results_db_dict})
 
     def formula_search(self, query):
         self.c = self.conn.cursor()
@@ -158,13 +156,12 @@ class Dsstox_DB:
             logging.info("=========== Parsing results ===========")
             for row in cursor:
                 ind = len(db_results.index)
-                print(ind)
                 db_results.loc[ind] = (formula,) + row
         logging.info("=========== Search complete ===========")
         # db_results['INPUT'] = query
         db_results['FOUND_BY'] = 'Exact Formula'
         results_db_dict = db_results.to_dict(orient='list')
-        return jsonify(results_db_dict)
+        return jsonify({'results': results_db_dict})
 
     def close(self):
         self.conn.close()
