@@ -2,13 +2,11 @@ import sqlite3 as sql
 import os
 import pandas as pd
 import logging
-import json
 
-from io import StringIO
 from flask import jsonify
 from flask_restful import Resource, reqparse
 
-### request parser
+# request parser
 parser = reqparse.RequestParser()
 parser.add_argument('search_by')
 parser.add_argument('query', action='append')
@@ -21,6 +19,7 @@ ASSAY_PATH = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'da
 logger = logging.getLogger("nta_flask")
 logger.setLevel(logging.INFO)
 
+
 class DsstoxBatchSearch(Resource):
 
     def post(self, jobId="000000100000011"):
@@ -29,14 +28,13 @@ class DsstoxBatchSearch(Resource):
         :param jobId:
         :return: a dataframe of the result
         """
-
         logger.info("=========== NTA batch search received ===========")
         args = parser.parse_args()
         search_by = args['search_by']
         query = list(args['query'])
         logger.info("# of queries: {}".format(len(query)))
         result = None
-        db_connection = Dsstox_DB(DSSTOX_PATH)
+        db_connection = DsstoxDB(DSSTOX_PATH)
         if search_by == "mass":
             accuracy = args['accuracy']
             if accuracy is None:
@@ -51,7 +49,7 @@ class DsstoxBatchSearch(Resource):
         return result
 
 
-class Dsstox_DB:
+class DsstoxDB:
     def __init__(self, path):
         self.conn = sql.connect(path)
         self.c = None
@@ -61,7 +59,7 @@ class Dsstox_DB:
         self.c = self.conn.cursor()
         self.c.execute('ATTACH DATABASE ? AS expocast;', (EXPOCAST_PATH,))
         self.c.execute('ATTACH DATABASE ? AS assay;', (ASSAY_PATH,))
-        self.c.execute('PRAGMA cache_size = -10000000;') # approx 10 gb
+        self.c.execute('PRAGMA cache_size = -4000000;') # approx 4 gb
         self.c.execute('PRAGMA temp_store = MEMORY;')
         db_results = pd.DataFrame(columns = ['INPUT', 'DTXCID_INDIVIDUAL_COMPONENT', 'MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT',
                                          'SMILES_INDIVIDUAL_COMPONENT', 'DTXSID', 'PREFERRED_NAME', 'CASRN',
@@ -71,11 +69,7 @@ class Dsstox_DB:
         logger.info("=========== Searching Dsstox DB ===========")
         self.c.execute('CREATE TEMP TABLE search (mass REAL PRIMARY KEY);')
         query_list = [(float(i),) for i in query]
-        query_list = [(float(i),) for i in query]
         self.c.executemany('INSERT INTO search (mass) VALUES (?)', query_list)
-        #query = [float(i) for i in query]
-        #abs_accuracy = accuracy * mass / 10**6
-        #print("Abs accuracy: {} Da".format(abs_accuracy))
         cursor = self.c.execute('''
                                 SELECT s.mass, c_suc.dsstox_compound_id, c_suc.monoisotopic_mass, c_suc.smiles, gs.dsstox_substance_id,
                                 gs.preferred_name, gs.casrn, c.jchem_inchi_key, c.acd_iupac_name, c.mol_formula,
@@ -112,10 +106,10 @@ class Dsstox_DB:
             ind = len(db_results.index)
             db_results.loc[ind] = row
         logger.info("=========== Search complete ===========")
-        #db_results['INPUT'] = query
         db_results['MASS_DIFFERENCE'] = abs(db_results['INPUT'].astype(float) -
                                                   db_results['MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT'].astype(float))
         db_results['FOUND_BY'] = 'Monoisotopic Mass'
+        db_results = db_results.sort_values(by=['INPUT', 'DATA_SOURCES'], ascending=[True, False])
         results_db_dict = db_results.to_dict(orient='split')
         return jsonify({'results': results_db_dict})
 
@@ -123,15 +117,12 @@ class Dsstox_DB:
         self.c = self.conn.cursor()
         self.c.execute('ATTACH DATABASE ? AS expocast;', (EXPOCAST_PATH,))
         self.c.execute('ATTACH DATABASE ? AS assay;', (ASSAY_PATH,))
-        self.c.execute('PRAGMA cache_size = -10000000;')  # approx 10 gb
+        self.c.execute('PRAGMA cache_size = -4000000;')  # approx 4 gb
         self.c.execute('PRAGMA temp_store = MEMORY;')
         db_results = pd.DataFrame(
             columns=['INPUT', 'DTXSID', 'PREFERRED_NAME', 'CASRN', 'INCHIKEY', 'IUPAC_NAME', 'MOLECULAR_FORMULA',
                      'MONOISOTOPIC_MASS', 'EXPOCAST_MEDIAN_EXPOSURE_PREDICTION_MG/KG-BW/DAY', 'EXPOCAST', 'NHANES',
                      'DATA_SOURCES', 'TOXCAST_PERCENT_ACTIVE', 'TOXCAST_NUMBER_OF_ASSAYS/TOTAL'])
-        #columns=['INPUT', 'DTXSID', 'PREFERRED_NAME', 'CASRN', 'INCHIKEY', 'IUPAC_NAME', 'MOLECULAR_FORMULA',
-        #                  'MONOISOTOPIC_MASS', 'EXPOCAST_MEDIAN_EXPOSURE_PREDICTION_MG/KG-BW/DAY', 'EXPOCAST', 'NHANES',
-        #                  'TOXCAST_PERCENT_ACTIVE', 'TOXCAST_NUMBER_OF_ASSAYS/TOTAL'])
         self.c.execute('CREATE TEMP TABLE search (formula VARCHAR(255) PRIMARY KEY);')
         query_list = [(i,) for i in query]
         self.c.executemany('INSERT INTO search (formula) VALUES (?)', query_list)
@@ -161,17 +152,19 @@ class Dsstox_DB:
                                             LEFT JOIN assay.chemical_assay_count as cac ON cac.chid = gs.id
                                             LEFT JOIN expocast.expocast_models as em ON em.casrn = gs.casrn
                                             GROUP BY c.id;
-                                            ORDER BY DATA_SOURCES DESC;
                                             ''')
         logger.info("=========== Parsing results ===========")
         for row in cursor:
             ind = len(db_results.index)
             db_results.loc[ind] = row
         logger.info("=========== Search complete ===========")
-        # db_results['INPUT'] = query
         db_results['FOUND_BY'] = 'Exact Formula'
+        db_results = db_results.sort_values(by=['INPUT', 'DATA_SOURCES'], ascending=[True, False])
         results_db_dict = db_results.to_dict(orient='split')
         return jsonify({'results': results_db_dict})
 
     def close(self):
+        if self.c:
+            self.c.close()
         self.conn.close()
+
