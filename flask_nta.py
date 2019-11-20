@@ -26,14 +26,13 @@ else:
     logging.debug("CORS not enabled")
 
 
-
 PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
 os.environ.update({
     'PROJECT_ROOT': PROJECT_ROOT
 })
 
-api.add_resource(batch_query.DsstoxBatchSearch, '/rest/nta/batch/<string:jobId>')
-#api.add_resource(ModelCaller, '/rest/pram/<string:model>/<string:jid>')  # Temporary generic route for API endpoints
+# nta prefix needed if running from this file, to replicate url when running from flask_cgi using middleware
+api.add_resource(batch_query.DsstoxBatchSearch, '/rest/ms1/batch/<string:jobId>')
 
 
 if __name__ == '__main__':
