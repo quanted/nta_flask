@@ -3,6 +3,8 @@ import os
 import pandas as pd
 import logging
 
+import multiprocessing as mp
+
 from flask import jsonify
 from flask_restful import Resource, reqparse
 
@@ -102,7 +104,8 @@ class DsstoxDB:
                                 /**ORDER BY DATA_SOURCES DESC;*//
                                 ''', (accuracy,accuracy))
         logger.info("=========== Parsing results ===========")
-        for row in cursor:
+        results = cursor.fetchmany(cursor.lastrowid)
+        for row in results:
             ind = len(db_results.index)
             db_results.loc[ind] = row
         logger.info("=========== Search complete ===========")
@@ -154,7 +157,8 @@ class DsstoxDB:
                                             GROUP BY c.id;
                                             ''')
         logger.info("=========== Parsing results ===========")
-        for row in cursor:
+        results = cursor.fetchmany(cursor.lastrowid)
+        for row in results:
             ind = len(db_results.index)
             db_results.loc[ind] = row
         logger.info("=========== Search complete ===========")
@@ -167,4 +171,3 @@ class DsstoxDB:
         if self.c:
             self.c.close()
         self.conn.close()
-
