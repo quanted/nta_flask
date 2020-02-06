@@ -14,9 +14,11 @@ parser.add_argument('search_by')
 parser.add_argument('query', action='append')
 parser.add_argument('accuracy', type=float, required=False)
 
-DSSTOX_PATH = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'database/dsstox_reduced.db'))
-EXPOCAST_PATH = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'database/expocast.db'))
-ASSAY_PATH = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'database/assay_count.db'))
+NTA_DB_DIR = os.getenv('NTA_DB_DIR', os.path.join(os.path.dirname(__file__), '..', 'database'))
+
+DSSTOX_PATH = os.path.abspath(os.path.join(NTA_DB_DIR, 'dsstox_reduced.db'))
+EXPOCAST_PATH = os.path.abspath(os.path.join(NTA_DB_DIR, 'expocast.db'))
+ASSAY_PATH = os.path.abspath(os.path.join(NTA_DB_DIR, 'assay_count.db'))
 
 logger = logging.getLogger("nta_flask")
 logger.setLevel(logging.INFO)
