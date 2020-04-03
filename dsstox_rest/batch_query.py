@@ -3,6 +3,8 @@ import os
 import pandas as pd
 import logging
 
+import multiprocessing as mp
+
 from flask import jsonify
 from flask_restful import Resource, reqparse
 
@@ -12,9 +14,11 @@ parser.add_argument('search_by')
 parser.add_argument('query', action='append')
 parser.add_argument('accuracy', type=float, required=False)
 
-DSSTOX_PATH = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'database/dsstox_reduced.db'))
-EXPOCAST_PATH = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'database/expocast.db'))
-ASSAY_PATH = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'database/assay_count.db'))
+NTA_DB_DIR = os.getenv('NTA_DB_DIR', os.path.join(os.path.dirname(__file__), '..', 'database'))
+
+DSSTOX_PATH = os.path.abspath(os.path.join(NTA_DB_DIR, 'dsstox_reduced.db'))
+EXPOCAST_PATH = os.path.abspath(os.path.join(NTA_DB_DIR, 'expocast.db'))
+ASSAY_PATH = os.path.abspath(os.path.join(NTA_DB_DIR, 'assay_count.db'))
 
 logger = logging.getLogger("nta_flask")
 logger.setLevel(logging.INFO)
@@ -102,7 +106,8 @@ class DsstoxDB:
                                 /**ORDER BY DATA_SOURCES DESC;*//
                                 ''', (accuracy,accuracy))
         logger.info("=========== Parsing results ===========")
-        for row in cursor:
+        results = cursor.fetchmany(cursor.lastrowid)
+        for row in results:
             ind = len(db_results.index)
             db_results.loc[ind] = row
         logger.info("=========== Search complete ===========")
@@ -154,7 +159,8 @@ class DsstoxDB:
                                             GROUP BY c.id;
                                             ''')
         logger.info("=========== Parsing results ===========")
-        for row in cursor:
+        results = cursor.fetchmany(cursor.lastrowid)
+        for row in results:
             ind = len(db_results.index)
             db_results.loc[ind] = row
         logger.info("=========== Search complete ===========")
@@ -167,4 +173,3 @@ class DsstoxDB:
         if self.c:
             self.c.close()
         self.conn.close()
-
