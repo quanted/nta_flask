@@ -65,16 +65,16 @@ class DsstoxDB:
         self.c.execute('ATTACH DATABASE ? AS assay;', (ASSAY_PATH,))
         self.c.execute('PRAGMA cache_size = -4000000;') # approx 4 gb
         self.c.execute('PRAGMA temp_store = MEMORY;')
-        db_results = pd.DataFrame(columns = ['INPUT', 'DTXCID_INDIVIDUAL_COMPONENT', 'MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT',
-                                         'SMILES_INDIVIDUAL_COMPONENT', 'DTXSID', 'PREFERRED_NAME', 'CASRN',
-                                         'INCHIKEY', 'IUPAC_NAME', 'MOLECULAR_FORMULA', 'MONOISOTOPIC_MASS',
-                                             'EXPOCAST_MEDIAN_EXPOSURE_PREDICTION_MG/KG-BW/DAY', 'EXPOCAST', 'NHANES',
-                                             'DATA_SOURCES', 'TOXCAST_PERCENT_ACTIVE','TOXCAST_NUMBER_OF_ASSAYS/TOTAL'])
+        #db_results = pd.DataFrame(columns = ['INPUT', 'DTXCID_INDIVIDUAL_COMPONENT', 'MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT',
+        #                                 'SMILES_INDIVIDUAL_COMPONENT', 'DTXSID', 'PREFERRED_NAME', 'CASRN',
+        #                                 'INCHIKEY', 'IUPAC_NAME', 'MOLECULAR_FORMULA', 'MONOISOTOPIC_MASS',
+        #                                     'EXPOCAST_MEDIAN_EXPOSURE_PREDICTION_MG/KG-BW/DAY', 'EXPOCAST', 'NHANES',
+        #                                     'DATA_SOURCES', 'TOXCAST_PERCENT_ACTIVE','TOXCAST_NUMBER_OF_ASSAYS/TOTAL'])
         logger.info("=========== Searching Dsstox DB ===========")
         self.c.execute('CREATE TEMP TABLE search (mass REAL PRIMARY KEY);')
         query_list = [(float(i),) for i in query]
         self.c.executemany('INSERT INTO search (mass) VALUES (?)', query_list)
-        cursor = self.c.execute('''
+        query = '''
                                 SELECT s.mass, c_suc.dsstox_compound_id, c_suc.monoisotopic_mass, c_suc.smiles, gs.dsstox_substance_id,
                                 gs.preferred_name, gs.casrn, c.jchem_inchi_key, c.acd_iupac_name, c.mol_formula,
                                 c.monoisotopic_mass, em.Total_median, 
@@ -92,7 +92,7 @@ class DsstoxDB:
                                 round(CAST(cac.assay_count_active AS FLOAT)/cac.assay_count_total*100,2) as TOXCAST_PERCENT_ACTIVE,
                                 cac.assay_count_active || "/" || cac.assay_count_total
                                 FROM search as s 
-                                JOIN compounds as c_suc ON c_suc.monoisotopic_mass BETWEEN s.mass - (? * (s.mass / 1000000)) AND s.mass + (? * (s.mass / 1000000))
+                                JOIN compounds as c_suc ON c_suc.monoisotopic_mass BETWEEN s.mass - ({} * (s.mass / 1000000)) AND s.mass + ({} * (s.mass / 1000000))
                                 JOIN compound_relationships as cr ON cr.fk_compound_id_successor = c_suc.id
                                 JOIN compounds as c ON cr.fk_compound_id_predecessor = c.id
                                 JOIN generic_substance_compounds as gsc ON c.id = gsc.fk_compound_id
@@ -104,12 +104,22 @@ class DsstoxDB:
                                 WHERE cr.fk_compound_relationship_type_id == 2 AND c.has_defined_isotope == 0
                                 GROUP BY s.mass, c.id;
                                 /**ORDER BY DATA_SOURCES DESC;*//
-                                ''', (accuracy, accuracy))
+                                '''.format(accuracy, accuracy)
         logger.info("=========== Parsing results ===========")
-        results = cursor.fetchall()
-        for row in results:
-            ind = len(db_results.index)
-            db_results.loc[ind] = row
+        #results = cursor.fetchall()
+        chunks = list()
+        for chunk in pd.read_sql(query, self.conn, chunksize=1000):
+            chunks.append(chunk)
+        db_results = pd.concat(chunks, ignore_index=True)
+        db_results.columns = ['INPUT', 'DTXCID_INDIVIDUAL_COMPONENT', 'MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT',
+                                         'SMILES_INDIVIDUAL_COMPONENT', 'DTXSID', 'PREFERRED_NAME', 'CASRN',
+                                         'INCHIKEY', 'IUPAC_NAME', 'MOLECULAR_FORMULA', 'MONOISOTOPIC_MASS',
+                                             'EXPOCAST_MEDIAN_EXPOSURE_PREDICTION_MG/KG-BW/DAY', 'EXPOCAST', 'NHANES',
+                                             'DATA_SOURCES', 'TOXCAST_PERCENT_ACTIVE','TOXCAST_NUMBER_OF_ASSAYS/TOTAL']
+        logger.info(db_results)
+        #for row in results:
+        #    ind = len(db_results.index)
+        #    db_results.loc[ind] = row
         logger.info("=========== Search complete ===========")
         db_results['MASS_DIFFERENCE'] = abs(db_results['INPUT'].astype(float) -
                                                   db_results['MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT'].astype(float))
