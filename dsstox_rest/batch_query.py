@@ -78,8 +78,8 @@ class DsstoxDB:
                                 SELECT s.mass, c_suc.dsstox_compound_id, c_suc.monoisotopic_mass, c_suc.smiles, gs.dsstox_substance_id,
                                 gs.preferred_name, gs.casrn, c.jchem_inchi_key, c.acd_iupac_name, c.mol_formula,
                                 c.monoisotopic_mass, em.Total_median, 
-                                CASE em.Total_median 
-                                    WHEN ''
+                                CASE
+                                    WHEN em.Total_median IS NULL
                                         THEN ''
                                     ELSE "https://comptox.epa.gov/dashboard/dsstoxdb/results?search=" || gs.dsstox_substance_id || "#exposure-predictions"
                                 END EXPOCAST,
@@ -104,9 +104,9 @@ class DsstoxDB:
                                 WHERE cr.fk_compound_relationship_type_id == 2 AND c.has_defined_isotope == 0
                                 GROUP BY s.mass, c.id;
                                 /**ORDER BY DATA_SOURCES DESC;*//
-                                ''', (accuracy,accuracy))
+                                ''', (accuracy, accuracy))
         logger.info("=========== Parsing results ===========")
-        results = cursor.fetchmany(cursor.lastrowid)
+        results = cursor.fetchall()
         for row in results:
             ind = len(db_results.index)
             db_results.loc[ind] = row
@@ -116,6 +116,7 @@ class DsstoxDB:
         db_results['FOUND_BY'] = 'Monoisotopic Mass'
         db_results = db_results.sort_values(by=['INPUT', 'DATA_SOURCES'], ascending=[True, False])
         results_db_dict = db_results.to_dict(orient='split')
+        #logger.info(db_results)
         return jsonify({'results': results_db_dict})
 
     def formula_search(self, query):
