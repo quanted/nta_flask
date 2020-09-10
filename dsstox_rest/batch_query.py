@@ -2,6 +2,7 @@ import sqlite3 as sql
 import os
 import pandas as pd
 import logging
+import time
 
 import multiprocessing as mp
 
@@ -65,21 +66,22 @@ class DsstoxDB:
         self.c.execute('ATTACH DATABASE ? AS assay;', (ASSAY_PATH,))
         self.c.execute('PRAGMA cache_size = -4000000;') # approx 4 gb
         self.c.execute('PRAGMA temp_store = MEMORY;')
-        db_results = pd.DataFrame(columns = ['INPUT', 'DTXCID_INDIVIDUAL_COMPONENT', 'MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT',
+        col_names = ['INPUT', 'DTXCID_INDIVIDUAL_COMPONENT', 'MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT',
                                          'SMILES_INDIVIDUAL_COMPONENT', 'DTXSID', 'PREFERRED_NAME', 'CASRN',
                                          'INCHIKEY', 'IUPAC_NAME', 'MOLECULAR_FORMULA', 'MONOISOTOPIC_MASS',
                                              'EXPOCAST_MEDIAN_EXPOSURE_PREDICTION_MG/KG-BW/DAY', 'EXPOCAST', 'NHANES',
-                                             'DATA_SOURCES', 'TOXCAST_PERCENT_ACTIVE','TOXCAST_NUMBER_OF_ASSAYS/TOTAL'])
+                                             'DATA_SOURCES', 'TOXCAST_PERCENT_ACTIVE','TOXCAST_NUMBER_OF_ASSAYS/TOTAL']
+        db_results = pd.DataFrame()
         logger.info("=========== Searching Dsstox DB ===========")
         self.c.execute('CREATE TEMP TABLE search (mass REAL PRIMARY KEY);')
         query_list = [(float(i),) for i in query]
         self.c.executemany('INSERT INTO search (mass) VALUES (?)', query_list)
-        cursor = self.c.execute('''
+        self.c.execute('''
                                 SELECT s.mass, c_suc.dsstox_compound_id, c_suc.monoisotopic_mass, c_suc.smiles, gs.dsstox_substance_id,
                                 gs.preferred_name, gs.casrn, c.jchem_inchi_key, c.acd_iupac_name, c.mol_formula,
                                 c.monoisotopic_mass, em.Total_median, 
-                                CASE em.Total_median 
-                                    WHEN ''
+                                CASE
+                                    WHEN em.Total_median IS NULL
                                         THEN ''
                                     ELSE "https://comptox.epa.gov/dashboard/dsstoxdb/results?search=" || gs.dsstox_substance_id || "#exposure-predictions"
                                 END EXPOCAST,
@@ -104,18 +106,28 @@ class DsstoxDB:
                                 WHERE cr.fk_compound_relationship_type_id == 2 AND c.has_defined_isotope == 0
                                 GROUP BY s.mass, c.id;
                                 /**ORDER BY DATA_SOURCES DESC;*//
-                                ''', (accuracy,accuracy))
+                                ''',(accuracy, accuracy))
         logger.info("=========== Parsing results ===========")
-        results = cursor.fetchmany(cursor.lastrowid)
-        for row in results:
-            ind = len(db_results.index)
-            db_results.loc[ind] = row
+        t0 = time.clock()
+        total_rows = 0
+        while True:
+            arraysize = 500
+            rows = self.c.fetchmany(arraysize)
+            if not rows:
+                break
+            db_results = db_results.append(rows, ignore_index=True)
+            total_rows = total_rows + arraysize
+            #logger.info("Fetched {} rows".format(total_rows))
+        t1 = time.clock()
+        logger.info("time for SQL query is: " + str(t1 - t0))
+        db_results.columns = col_names
         logger.info("=========== Search complete ===========")
         db_results['MASS_DIFFERENCE'] = abs(db_results['INPUT'].astype(float) -
                                                   db_results['MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT'].astype(float))
         db_results['FOUND_BY'] = 'Monoisotopic Mass'
         db_results = db_results.sort_values(by=['INPUT', 'DATA_SOURCES'], ascending=[True, False])
         results_db_dict = db_results.to_dict(orient='split')
+        #logger.info(db_results)
         return jsonify({'results': results_db_dict})
 
     def formula_search(self, query):
@@ -124,15 +136,14 @@ class DsstoxDB:
         self.c.execute('ATTACH DATABASE ? AS assay;', (ASSAY_PATH,))
         self.c.execute('PRAGMA cache_size = -4000000;')  # approx 4 gb
         self.c.execute('PRAGMA temp_store = MEMORY;')
-        db_results = pd.DataFrame(
-            columns=['INPUT', 'DTXSID', 'PREFERRED_NAME', 'CASRN', 'INCHIKEY', 'IUPAC_NAME', 'MOLECULAR_FORMULA',
+        col_names = ['INPUT', 'DTXSID', 'PREFERRED_NAME', 'CASRN', 'INCHIKEY', 'IUPAC_NAME', 'MOLECULAR_FORMULA',
                      'MONOISOTOPIC_MASS', 'EXPOCAST_MEDIAN_EXPOSURE_PREDICTION_MG/KG-BW/DAY', 'EXPOCAST', 'NHANES',
-                     'DATA_SOURCES', 'TOXCAST_PERCENT_ACTIVE', 'TOXCAST_NUMBER_OF_ASSAYS/TOTAL'])
-        self.c.execute('CREATE TEMP TABLE search (formula VARCHAR(255) PRIMARY KEY);')
+                     'DATA_SOURCES', 'TOXCAST_PERCENT_ACTIVE', 'TOXCAST_NUMBER_OF_ASSAYS/TOTAL']
+        db_results = pd.DataFrame()
         query_list = [(i,) for i in query]
         self.c.executemany('INSERT INTO search (formula) VALUES (?)', query_list)
         logger.info("=========== Searching Dsstox DB ===========")
-        cursor = self.c.execute('''
+        self.c.execute('''
                                             SELECT s.formula, gs.dsstox_substance_id, gs.preferred_name, gs.casrn, c.jchem_inchi_key, 
                                             c.acd_iupac_name, c.mol_formula, c.monoisotopic_mass, em.Total_median, 
                                             CASE em.Total_median 
@@ -159,10 +170,19 @@ class DsstoxDB:
                                             GROUP BY c.id;
                                             ''')
         logger.info("=========== Parsing results ===========")
-        results = cursor.fetchmany(cursor.lastrowid)
-        for row in results:
-            ind = len(db_results.index)
-            db_results.loc[ind] = row
+        t0 = time.clock()
+        total_rows = 0
+        while True:
+            arraysize = 500
+            rows = self.c.fetchmany(arraysize)
+            if not rows:
+                break
+            db_results = db_results.append(rows, ignore_index=True)
+            total_rows = total_rows + arraysize
+            #logger.info("Fetched {} rows".format(total_rows))
+        t1 = time.clock()
+        logger.info("time for SQL query is :" + str(t1 - t0))
+        db_results.columns = col_names
         logger.info("=========== Search complete ===========")
         db_results['FOUND_BY'] = 'Exact Formula'
         db_results = db_results.sort_values(by=['INPUT', 'DATA_SOURCES'], ascending=[True, False])
