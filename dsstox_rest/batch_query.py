@@ -108,7 +108,7 @@ class DsstoxDB:
                                 /**ORDER BY DATA_SOURCES DESC;*//
                                 ''',(accuracy, accuracy))
         logger.info("=========== Parsing results ===========")
-        t0 = time.clock()
+        t0 = time.process_time()
         total_rows = 0
         while True:
             arraysize = 500
@@ -118,7 +118,7 @@ class DsstoxDB:
             db_results = db_results.append(rows, ignore_index=True)
             total_rows = total_rows + arraysize
             #logger.info("Fetched {} rows".format(total_rows))
-        t1 = time.clock()
+        t1 = time.process_time()
         logger.info("time for SQL query is: " + str(t1 - t0))
         db_results.columns = col_names
         logger.info("=========== Search complete ===========")
@@ -170,7 +170,7 @@ class DsstoxDB:
                                             GROUP BY c.id;
                                             ''')
         logger.info("=========== Parsing results ===========")
-        t0 = time.clock()
+        t0 = time.process_time()
         total_rows = 0
         while True:
             arraysize = 500
@@ -180,7 +180,7 @@ class DsstoxDB:
             db_results = db_results.append(rows, ignore_index=True)
             total_rows = total_rows + arraysize
             #logger.info("Fetched {} rows".format(total_rows))
-        t1 = time.clock()
+        t1 = time.process_time()
         logger.info("time for SQL query is :" + str(t1 - t0))
         db_results.columns = col_names
         logger.info("=========== Search complete ===========")
