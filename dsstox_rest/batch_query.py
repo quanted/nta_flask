@@ -1,4 +1,4 @@
-import sqlite3 as sql
+import psycopg2
 import os
 import pandas as pd
 import logging
@@ -9,17 +9,17 @@ import multiprocessing as mp
 from flask import jsonify
 from flask_restful import Resource, reqparse
 
+user = os.environ.get('POSTGRES_USER')
+pw = os.environ.get('POSTGRES_PW')
+host = os.environ.get('POSTGRES_HOST')
+dbname = os.environ.get('POSTGRES_DB')
+port = os.environ.get('POSTGRES_PORT')
+
 # request parser
 parser = reqparse.RequestParser()
 parser.add_argument('search_by')
 parser.add_argument('query', action='append')
 parser.add_argument('accuracy', type=float, required=False)
-
-NTA_DB_DIR = os.getenv('NTA_DB_DIR', os.path.join(os.path.dirname(__file__), '..', 'database'))
-
-DSSTOX_PATH = os.path.abspath(os.path.join(NTA_DB_DIR, 'dsstox_reduced.db'))
-EXPOCAST_PATH = os.path.abspath(os.path.join(NTA_DB_DIR, 'expocast.db'))
-ASSAY_PATH = os.path.abspath(os.path.join(NTA_DB_DIR, 'assay_count.db'))
 
 logger = logging.getLogger("nta_flask")
 logger.setLevel(logging.INFO)
@@ -39,98 +39,53 @@ class DsstoxBatchSearch(Resource):
         query = list(args['query'])
         logger.info("# of queries: {}".format(len(query)))
         result = None
-        db_connection = DsstoxDB(DSSTOX_PATH)
+        dbconn = psycopg2.connect(
+            host=host,
+            port=port,
+            user=user,
+            password=pw,
+            database=dbname)
         if search_by == "mass":
             accuracy = args['accuracy']
             if accuracy is None:
                 return jsonify({"Error": "If searching by mass, the 'accuracy' parameter must be provided in ppm"})
-            result = db_connection.mass_search(query, accuracy)
-            db_connection.close()
+            result = self.mass_search(query, accuracy, dbconn)
+            dbconn.close()
         elif search_by == "formula":
-            result = db_connection.formula_search(query)
-            db_connection.close()
+            result = self.formula_search(query, dbconn)
+            dbconn.close()
         else:
             return jsonify({"Error": "search_by must be either  'mass' or 'formula'"})
         return result
 
-
-class DsstoxDB:
-    def __init__(self, path):
-        self.conn = sql.connect(path)
-        self.c = None
-        logger.info("=========== Dsstox DB connection established ===========")
-
-    def mass_search(self, query, accuracy):   # Note - accuracy comes in as ppm
-        self.c = self.conn.cursor()
-        self.c.execute('ATTACH DATABASE ? AS expocast;', (EXPOCAST_PATH,))
-        self.c.execute('ATTACH DATABASE ? AS assay;', (ASSAY_PATH,))
-        self.c.execute('PRAGMA cache_size = -4000000;') # approx 4 gb
-        self.c.execute('PRAGMA temp_store = MEMORY;')
-        col_names = ['INPUT', 'DTXCID_INDIVIDUAL_COMPONENT', 'MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT',
-                                         'SMILES_INDIVIDUAL_COMPONENT', 'DTXSID', 'PREFERRED_NAME', 'CASRN',
-                                         'INCHIKEY', 'IUPAC_NAME', 'MOLECULAR_FORMULA', 'MONOISOTOPIC_MASS',
-                                             'EXPOCAST_MEDIAN_EXPOSURE_PREDICTION_MG/KG-BW/DAY', 'EXPOCAST', 'NHANES',
-                                             'DATA_SOURCES', 'TOXCAST_PERCENT_ACTIVE','TOXCAST_NUMBER_OF_ASSAYS/TOTAL']
-        db_results = pd.DataFrame()
-        logger.info("=========== Searching Dsstox DB ===========")
-        self.c.execute('CREATE TEMP TABLE search (mass REAL PRIMARY KEY);')
-        query_list = [(float(i),) for i in query]
-        self.c.executemany('INSERT INTO search (mass) VALUES (?)', query_list)
-        self.c.execute('''
-                                SELECT s.mass, c_suc.dsstox_compound_id, c_suc.monoisotopic_mass, c_suc.smiles, gs.dsstox_substance_id,
-                                gs.preferred_name, gs.casrn, c.jchem_inchi_key, c.acd_iupac_name, c.mol_formula,
-                                c.monoisotopic_mass, em.Total_median, 
-                                CASE
-                                    WHEN em.Total_median IS NULL
-                                        THEN ''
-                                    ELSE "https://comptox.epa.gov/dashboard/dsstoxdb/results?search=" || gs.dsstox_substance_id || "#exposure-predictions"
-                                END EXPOCAST,
-                                CASE em.inNHANES
-                                    WHEN 'TRUE'
-                                        THEN "https://comptox.epa.gov/dashboard/dsstoxdb/results?search=" || gs.dsstox_substance_id || "#monitoring-data"
-                                      ELSE ''
-                                END NHANES,
-                                count(DISTINCT ss.fk_chemical_list_id)+1 as DATA_SOURCES,
-                                round(CAST(cac.assay_count_active AS FLOAT)/cac.assay_count_total*100,2) as TOXCAST_PERCENT_ACTIVE,
-                                cac.assay_count_active || "/" || cac.assay_count_total
-                                FROM search as s 
-                                JOIN compounds as c_suc ON c_suc.monoisotopic_mass BETWEEN s.mass - (? * (s.mass / 1000000)) AND s.mass + (? * (s.mass / 1000000))
-                                JOIN compound_relationships as cr ON cr.fk_compound_id_successor = c_suc.id
-                                JOIN compounds as c ON cr.fk_compound_id_predecessor = c.id
-                                JOIN generic_substance_compounds as gsc ON c.id = gsc.fk_compound_id
-                                JOIN generic_substances as gs ON gsc.fk_generic_substance_id = gs.id
-                                LEFT JOIN source_generic_substance_mappings as sgsm ON sgsm.fk_generic_substance_id = gs.id
-                                LEFT JOIN source_substances as ss ON ss.id = sgsm.fk_source_substance_id
-                                LEFT JOIN assay.chemical_assay_count as cac ON cac.chid = gs.id
-                                LEFT JOIN expocast.expocast_models as em ON em.casrn = gs.casrn 
-                                WHERE cr.fk_compound_relationship_type_id == 2 AND c.has_defined_isotope == 0
-                                GROUP BY s.mass, c.id;
-                                /**ORDER BY DATA_SOURCES DESC;*//
-                                ''',(accuracy, accuracy))
-        logger.info("=========== Parsing results ===========")
-        t0 = time.process_time()
-        total_rows = 0
-        while True:
-            arraysize = 500
-            rows = self.c.fetchmany(arraysize)
-            if not rows:
-                break
-            db_results = db_results.append(rows, ignore_index=True)
-            total_rows = total_rows + arraysize
-            #logger.info("Fetched {} rows".format(total_rows))
-        t1 = time.process_time()
-        logger.info("time for SQL query is: " + str(t1 - t0))
-        db_results.columns = col_names
+    def mass_search(self, query, accuracy, dbconn):  # Note - accuracy comes in as ppm
+        logger.info("=========== Searching ms1_data table ===========")
+        query_list = [(float(i)) for i in query]
+        results = pd.DataFrame()
+        for massquery in query_list:
+            max_mass = massquery + massquery * accuracy / 1000000
+            min_mass = massquery - massquery * accuracy / 1000000
+            sql = """Select '""" + str(massquery) + """' as "INPUT", msr_dsstox_compound_id as "DTXCID_INDIVIDUAL_COMPONENT", 
+                msr_monoisotopic_mass as "MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT",
+                msr_smiles as "SMILES_INDIVIDUAL_COMPONENT", dsstox_substance_id as "DTXSID", preferred_name as "PREFERRED_NAME", 
+                casrn as "CASRN", jchem_inchi_key as "INCHIKEY", acd_iupac_name as "IUPAC_NAME", mol_formula as "MOLECULAR_FORMULA",
+                monoisotopic_mass as "MONOISOTOPIC_MASS", total_median as "EXPOCAST_MEDIAN_EXPOSURE_PREDICTION_MG/KG-BW/DAY",
+                expocast_comptox_link as "EXPOCAST", nhanes_comptox_link as "NHANES", data_sources as "DATA_SOURCES", 
+                round(assay_count_active/assay_count_total*100,2) as "TOXCAST_PERCENT_ACTIVE", 
+                assay_count_active || '/' || assay_count_total as "TOXCAST_NUMBER_OF_ASSAYS/TOTAL"
+                FROM ms1_batch_search
+                where msr_monoisotopic_mass BETWEEN """ + str(min_mass) + """ AND """ + str(max_mass) + """;"""
+            results = results.append(pd.read_sql(sql, dbconn))
         logger.info("=========== Search complete ===========")
-        db_results['MASS_DIFFERENCE'] = abs(db_results['INPUT'].astype(float) -
-                                                  db_results['MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT'].astype(float))
-        db_results['FOUND_BY'] = 'Monoisotopic Mass'
-        db_results = db_results.sort_values(by=['INPUT', 'DATA_SOURCES'], ascending=[True, False])
-        results_db_dict = db_results.to_dict(orient='split')
-        #logger.info(db_results)
+        results['MASS_DIFFERENCE'] = abs(results['INPUT'].astype(float) -
+                                         results['MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT'].astype(float))
+        results['FOUND_BY'] = 'Monoisotopic Mass'
+        results = results.sort_values(by=['INPUT', 'DATA_SOURCES'], ascending=[True, False])
+        results_db_dict = results.to_dict(orient='split')
+        # logger.info(db_results)
         return jsonify({'results': results_db_dict})
 
-    def formula_search(self, query):
+    def formula_search(self, query, dbconn):
         self.c = self.conn.cursor()
         self.c.execute('ATTACH DATABASE ? AS expocast;', (EXPOCAST_PATH,))
         self.c.execute('ATTACH DATABASE ? AS assay;', (ASSAY_PATH,))
@@ -179,7 +134,7 @@ class DsstoxDB:
                 break
             db_results = db_results.append(rows, ignore_index=True)
             total_rows = total_rows + arraysize
-            #logger.info("Fetched {} rows".format(total_rows))
+            # logger.info("Fetched {} rows".format(total_rows))
         t1 = time.process_time()
         logger.info("time for SQL query is :" + str(t1 - t0))
         db_results.columns = col_names
@@ -188,8 +143,3 @@ class DsstoxDB:
         db_results = db_results.sort_values(by=['INPUT', 'DATA_SOURCES'], ascending=[True, False])
         results_db_dict = db_results.to_dict(orient='split')
         return jsonify({'results': results_db_dict})
-
-    def close(self):
-        if self.c:
-            self.c.close()
-        self.conn.close()
