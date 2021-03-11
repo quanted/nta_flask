@@ -30,4 +30,4 @@ In order for the service to be used, a database must be initialized.  For more o
 please review the markdown in _database/DATA_INITIALIZATION.md_.
 
 To config the application for connection to the database, the following environment variables must be defined: 
-POSTGRES_USER, POSTGRES_PW, POSTGRES_HOST, POSTGRES_DB
+POSTGRES_USER, AURORA_PW, POSTGRES_HOST, POSTGRES_DB
