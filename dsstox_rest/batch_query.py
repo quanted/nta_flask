@@ -10,7 +10,7 @@ from flask import jsonify
 from flask_restful import Resource, reqparse
 
 user = os.environ.get('POSTGRES_USER')
-pw = os.environ.get('POSTGRES_PW')
+pw = os.environ.get('AURORA_PW')
 host = os.environ.get('POSTGRES_HOST')
 dbname = os.environ.get('POSTGRES_DB')
 port = os.environ.get('POSTGRES_PORT')
