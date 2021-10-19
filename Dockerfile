@@ -4,7 +4,7 @@ RUN apt-get update --allow-releaseinfo-change -y
 RUN apt-get upgrade --fix-missing -y
 RUN apt-get install -y --fix-missing --no-install-recommends git
 
-RUN mkdir /tmp/django && cd /tmp/django && git clone -b dev-k https://github.com/quanted/nta_app.git
+RUN cd /tmp && git clone -b dev-k https://github.com/quanted/nta_app.git
 
 FROM python:3.9
 
@@ -21,8 +21,9 @@ RUN chmod 755 /src/start_flask.sh
 WORKDIR /src/
 EXPOSE 8080
 
-COPY --from=base /tmp/django/requirements.txt /src/requirements.txt
+COPY --from=base /tmp/nta_app/requirements.txt /src/requirements.txt
 RUN pip install -r /src/requirements.txt
+RUN pip install uwsgi
 RUN python --version
 
 ENV PYTHONPATH $PYTHONPATH:/src
