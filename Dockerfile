@@ -16,17 +16,17 @@ RUN apt-get install -y --fix-missing --no-install-recommends \
     pip install -U pip
 
 COPY uwsgi.ini /etc/uwsgi/
-COPY . /src/nta_flask
-RUN chmod 755 /src/nta_flask/start_flask.sh
+COPY . /src/flask_nta
+RUN chmod 755 /src/flask_nta/start_flask.sh
 WORKDIR /src/
 EXPOSE 8080
 
-COPY --from=base /tmp/nta_app/requirements.txt /src/nta_flask/requirements.txt
-RUN pip install -r /src/nta_flask/requirements.txt
+COPY --from=base /tmp/nta_app/requirements.txt /src/flask_nta/requirements.txt
+RUN pip install -r /src/flask_nta/requirements.txt
 RUN pip install uwsgi
 RUN python --version
 
-ENV PYTHONPATH /src/nta_flask/:$PYTHONPATH
-ENV PATH /src/nta_flask/:$PATH
+ENV PYTHONPATH /src/flask_nta/:$PYTHONPATH
+ENV PATH /src/flask_nta/:$PATH
 
-CMD ["sh", "/src/nta_flask/start_flask.sh"]
+CMD ["sh", "/src/flask_nta/start_flask.sh"]
