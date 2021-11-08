@@ -26,7 +26,7 @@ RUN pip install -r /src/nta_flask/requirements.txt
 RUN pip install uwsgi
 RUN python --version
 
-ENV PYTHONPATH /src/nta_flask/:$PYTHONPATH
-ENV PATH /src/nta_flask/:$PATH
+ENV PYTHONPATH /src:/src/nta_flask/:$PYTHONPATH
+ENV PATH /src:/src/nta_flask/:$PATH
 
 CMD ["sh", "/src/nta_flask/start_flask.sh"]
