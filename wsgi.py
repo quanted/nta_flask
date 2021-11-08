@@ -1,3 +1,3 @@
-import nta_flask
+import nta_flask.flask_nta as flask_nta
 
-application = nta_flask.app
+application = flask_nta.app
