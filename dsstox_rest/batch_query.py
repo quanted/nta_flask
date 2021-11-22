@@ -119,6 +119,6 @@ class DsstoxMSRFormulas(Resource):
             password=pw,
             database=dbname)
         sql = """SELECT DISTINCT msr_mol_formula AS "MS-READY MOLECULAR FORMULA" FROM ms1_batch_search;"""
-            results = results.append(pd.read_sql(sql, dbconn))
+        results = results.append(pd.read_sql(sql, dbconn))
         results_db_dict = results.to_dict(orient='split')
         return jsonify({'results': results_db_dict})
