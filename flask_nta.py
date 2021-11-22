@@ -33,6 +33,7 @@ os.environ.update({
 
 # nta prefix needed if running from this file, to replicate url when running from flask_cgi using middleware
 api.add_resource(batch_query.DsstoxBatchSearch, '/rest/ms1/batch/<string:jobId>')
+api.add_resource(batch_query.DsstoxMSRFormulas, '/rest/ms1/list')
 api.add_resource(ms2_query.MS2Search, '/rest/ms2/<string:jobId>')
 
 if __name__ == '__main__':
