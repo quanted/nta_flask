@@ -32,6 +32,9 @@ class MS2Search(Resource):
         """
         logger.info("=========== MS2 CFMID search received ===========")
         args = parser.parse_args()
+        mass = args['mass']
+        accuracy = args['accuracy']
+        mode = args['mode']
         logger.info("Parent mass: {}".format(mass))
         dbconn = psycopg2.connect(
             host=host,
@@ -50,6 +53,7 @@ class MS2Search(Resource):
         db.close()
         db = None
         logger.info("num of chunks: {}".format(len(chunks)))
-        results_db_dict = chunks.to_dict(orient='split')
+        full_df = pd.concat(chunks)
+        results_db_dict = full_df.to_dict(orient='split')
         return jsonify({'results': results_db_dict})
         
