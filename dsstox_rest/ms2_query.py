@@ -15,8 +15,9 @@ port = os.environ.get('POSTGRES_PORT')
 
 # request parser
 parser = reqparse.RequestParser()
-parser.add_argument('mass', type=float)
+parser.add_argument('mass', type=float, required=True)
 parser.add_argument('accuracy', type=float, required=True)
+parser.add_argument('mode', type=str, required=True)
 
 logger = logging.getLogger("nta_flask")
 logger.setLevel(logging.INFO)
