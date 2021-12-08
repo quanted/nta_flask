@@ -49,10 +49,10 @@ class MS2Search(Resource):
         query = """select dtxcid as "DTXCID", formula as "FORMULA", mass as "MASS", mz as "PMASS_x", intensity as "INTENSITY0C", energy as "ENERGY"
         from job_peak where """ + accuracy_condition + """ and type='""" + mode + """'order by "DTXCID","ENERGY", "INTENSITY0C" desc;"""
         chunks = list()
-        for chunk in pd.read_sql(query, db, chunksize=1000):
+        for chunk in pd.read_sql(query, dbconn, chunksize=1000):
             chunks.append(chunk)
-        db.close()
-        db = None
+        dbconn.close()
+        dbconn = None
         logger.info("num of chunks: {}".format(len(chunks)))
         full_df = pd.concat(chunks)
         results_db_dict = full_df.to_dict(orient='split')
