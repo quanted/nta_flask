@@ -56,5 +56,7 @@ class MS2Search(Resource):
         logger.info("num of chunks: {}".format(len(chunks)))
         full_df = pd.concat(chunks)
         results_db_dict = full_df.to_dict(orient='split')
+        if len(results_db_dict) < 1:
+            return jsonify({'results': 'none'})
         return jsonify({'results': results_db_dict})
         
