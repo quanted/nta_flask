@@ -1,10 +1,12 @@
 FROM python:3.9 AS base
 
+ARG BRANCH_NAME=dev
+
 RUN apt-get update --allow-releaseinfo-change -y
 RUN apt-get upgrade --fix-missing -y
 RUN apt-get install -y --fix-missing --no-install-recommends git
 
-RUN cd /tmp && git clone -b dev-k https://github.com/quanted/nta_app.git
+RUN cd /tmp && git clone -b ${BRANCH_NAME} https://github.com/quanted/nta_app.git
 
 FROM continuumio/miniconda3:4.10.3
 
