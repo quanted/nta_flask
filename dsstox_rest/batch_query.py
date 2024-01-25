@@ -76,7 +76,7 @@ class DsstoxBatchSearch(Resource):
                 assay_count_active || '/' || assay_count_total as "TOXCAST_NUMBER_OF_ASSAYS/TOTAL"
                 FROM ms1_batch_search
                 where msr_monoisotopic_mass BETWEEN """ + str(min_mass) + """ AND """ + str(max_mass) + """;"""
-            results = results.append(pd.read_sql(sql, dbconn))
+            results = pd.concat([results, pd.read_sql(sql, dbconn)])
         logger.info("=========== Search complete ===========")
         results['MASS_DIFFERENCE'] = abs(results['INPUT'].astype(float) -
                                          results['MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT'].astype(float))
@@ -101,7 +101,7 @@ class DsstoxBatchSearch(Resource):
                 assay_count_active || '/' || assay_count_total as "TOXCAST_NUMBER_OF_ASSAYS/TOTAL"
                 FROM ms1_batch_search
                 where msr_mol_formula = '""" + formulaquery + """';"""
-            results = results.append(pd.read_sql(sql, dbconn))
+            results = pd.concat([results,pd.read_sql(sql, dbconn)])
         logger.info("=========== Search complete ===========")
         results['FOUND_BY'] = 'Exact Formula'
         results = results.sort_values(by=['INPUT', 'DATA_SOURCES'], ascending=[True, False])
@@ -119,7 +119,7 @@ class DsstoxMSRFormulas(Resource):
             password=pw,
             database=dbname)
         sql = """SELECT DISTINCT msr_mol_formula AS "MS-READY MOLECULAR FORMULA" FROM ms1_batch_search;"""
-        results = results.append(pd.read_sql(sql, dbconn))
+        results = pd.concat([results,pd.read_sql(sql, dbconn)])
         results_db_dict = results.to_dict(orient='split')
         del results_db_dict['index']
         return jsonify({'results': results_db_dict})
