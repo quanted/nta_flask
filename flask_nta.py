@@ -16,7 +16,7 @@ from nta_flask.dsstox_rest import batch_query, ms2_query
 
 app = Flask(__name__)
 app.config.update(
-    DEBUG=True,
+    DEBUG=False,
 )
 
 api = Api(app)
@@ -37,4 +37,4 @@ api.add_resource(batch_query.DsstoxMSRFormulas, '/rest/ms1/list')
 api.add_resource(ms2_query.MS2Search, '/rest/ms2/<string:jobId>')
 
 if __name__ == '__main__':
-    app.run(port=7777, debug=True)
+    app.run(port=7777, debug=False)
