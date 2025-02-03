@@ -75,7 +75,7 @@ class DsstoxBatchSearch(Resource):
                 expocast_comptox_link as "EXPOCAST", nhanes_comptox_link as "NHANES", data_sources as "DATA_SOURCES", 
                 round(assay_count_active/assay_count_total*100,2) as "TOXCAST_PERCENT_ACTIVE", 
                 assay_count_active || '/' || assay_count_total as "TOXCAST_NUMBER_OF_ASSAYS/TOTAL"
-                FROM ms1_batch_search_new
+                FROM ms1_batch_search
                 where msr_monoisotopic_mass BETWEEN """
                 + str(min_mass)
                 + """ AND """
