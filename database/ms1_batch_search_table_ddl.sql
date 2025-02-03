@@ -7,7 +7,7 @@ CREATE TABLE ms1_batch_search (
   msr_smiles TEXT NULL,
   msr_mol_formula VARCHAR(255) NULL,
   dsstox_substance_id VARCHAR(45) NULL,
-  preferred_name VARCHAR(255) NULL,
+  preferred_name TEXT NULL,
   casrn VARCHAR(45) NULL,
   jchem_inchi_key VARCHAR(45) NULL,
   acd_iupac_name TEXT NULL,
