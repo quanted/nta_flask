@@ -72,7 +72,7 @@ class DsstoxBatchSearch(Resource):
                 msr_smiles as "SMILES_INDIVIDUAL_COMPONENT", dsstox_substance_id as "DTXSID", preferred_name as "PREFERRED_NAME", 
                 casrn as "CASRN", jchem_inchi_key as "INCHIKEY", acd_iupac_name as "IUPAC_NAME", mol_formula as "MOLECULAR_FORMULA",
                 monoisotopic_mass as "MONOISOTOPIC_MASS", total_median as "EXPOCAST_MEDIAN_EXPOSURE_PREDICTION_MG/KG-BW/DAY",
-                expocast_comptox_link as "EXPOCAST", nhanes_comptox_link as "NHANES", data_sources as "DATA_SOURCES", 
+                expocast_comptox_link as "EXPOCAST", nhanes_comptox_link as "NHANES", 
                 patent_count AS "PATENT_COUNT", literature_count AS "LITERATURE_COUNT", pubmed_count AS "PUBMED_COUNT",
                 source_count AS "SOURCE_COUNT",
                 round(assay_count_active/assay_count_total*100,2) as "TOXCAST_PERCENT_ACTIVE", 
@@ -91,7 +91,7 @@ class DsstoxBatchSearch(Resource):
             - results["MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT"].astype(float)
         )
         results["FOUND_BY"] = "Monoisotopic Mass"
-        results = results.sort_values(by=["INPUT", "DATA_SOURCES"], ascending=[True, False])
+        results = results.sort_values(by=["INPUT", "SOURCE_COUNT"], ascending=[True, False])
         results_db_dict = results.to_dict(orient="split")
         # logger.info(db_results)
         return jsonify({"results": results_db_dict})
@@ -108,7 +108,7 @@ class DsstoxBatchSearch(Resource):
                 msr_smiles as "SMILES_INDIVIDUAL_COMPONENT", dsstox_substance_id as "DTXSID", preferred_name as "PREFERRED_NAME", 
                 casrn as "CASRN", jchem_inchi_key as "INCHIKEY", acd_iupac_name as "IUPAC_NAME", mol_formula as "MOLECULAR_FORMULA",
                 monoisotopic_mass as "MONOISOTOPIC_MASS", total_median as "EXPOCAST_MEDIAN_EXPOSURE_PREDICTION_MG/KG-BW/DAY",
-                expocast_comptox_link as "EXPOCAST", nhanes_comptox_link as "NHANES", data_sources as "DATA_SOURCES", 
+                expocast_comptox_link as "EXPOCAST", nhanes_comptox_link as "NHANES",
                 patent_count AS "PATENT_COUNT", literature_count AS "LITERATURE_COUNT", pubmed_count AS "PUBMED_COUNT",
                 source_count AS "SOURCE_COUNT", 
                 round(assay_count_active/assay_count_total*100,2) as "TOXCAST_PERCENT_ACTIVE", 
@@ -121,7 +121,7 @@ class DsstoxBatchSearch(Resource):
             results = pd.concat([results, pd.read_sql(sql, dbconn)])
         logger.info("=========== Search complete ===========")
         results["FOUND_BY"] = "Exact Formula"
-        results = results.sort_values(by=["INPUT", "DATA_SOURCES"], ascending=[True, False])
+        results = results.sort_values(by=["INPUT", "SOURCE_COUNT"], ascending=[True, False])
         results_db_dict = results.to_dict(orient="split")
         return jsonify({"results": results_db_dict})
 
