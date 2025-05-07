@@ -1,6 +1,6 @@
 CREATE SEQUENCE ms1_batch_search_seq;
 
-CREATE TABLE ms1_batch_search_042025 (
+CREATE TABLE ms1_batch_search_050725 (
   id INT NOT NULL DEFAULT NEXTVAL ('ms1_batch_search_seq'),
   msr_dsstox_compound_id VARCHAR(45) NULL,
   msr_monoisotopic_mass DOUBLE PRECISION NULL,
@@ -22,7 +22,7 @@ CREATE TABLE ms1_batch_search_042025 (
   data_sources INT NULL,
   PRIMARY KEY (id));
 
-  CREATE INDEX on ms1_batch_search_042025 (msr_mol_formula);
-  CREATE INDEX on ms1_batch_search_042025 (msr_monoisotopic_mass);
-  CREATE INDEX on ms1_batch_search_042025 (mol_formula);
-  CREATE INDEX on ms1_batch_search_042025 (monoisotopic_mass);
+  CREATE INDEX on ms1_batch_search_050725 (msr_mol_formula);
+  CREATE INDEX on ms1_batch_search_050725 (msr_monoisotopic_mass);
+  CREATE INDEX on ms1_batch_search_050725 (mol_formula);
+  CREATE INDEX on ms1_batch_search_050725 (monoisotopic_mass);
