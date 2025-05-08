@@ -68,7 +68,7 @@ class DsstoxBatchSearch(Resource):
                 """Select '"""
                 + str(massquery)
                 + """' as "INPUT", msr_dsstox_compound_id as "DTXCID_INDIVIDUAL_COMPONENT", 
-                msr_monoisotopic_mass as "MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT",
+                msr_mol_formula as "MOLECULAR_FORMULA_INDIVIDUAL_COMPONENT", msr_monoisotopic_mass as "MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT",
                 msr_smiles as "SMILES_INDIVIDUAL_COMPONENT", dsstox_substance_id as "DTXSID", preferred_name as "PREFERRED_NAME", 
                 casrn as "CASRN", jchem_inchi_key as "INCHIKEY", acd_iupac_name as "IUPAC_NAME", mol_formula as "MOLECULAR_FORMULA",
                 monoisotopic_mass as "MONOISOTOPIC_MASS", total_median as "EXPOCAST_MEDIAN_EXPOSURE_PREDICTION_MG/KG-BW/DAY",
@@ -77,7 +77,7 @@ class DsstoxBatchSearch(Resource):
                 source_count AS "SOURCE_COUNT",
                 round(assay_count_active/assay_count_total*100,2) as "TOXCAST_PERCENT_ACTIVE", 
                 assay_count_active || '/' || assay_count_total as "TOXCAST_NUMBER_OF_ASSAYS/TOTAL"
-                FROM ms1_batch_search
+                FROM ms1_batch_search_050725_am
                 where msr_monoisotopic_mass BETWEEN """
                 + str(min_mass)
                 + """ AND """
