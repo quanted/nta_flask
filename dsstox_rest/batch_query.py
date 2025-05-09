@@ -26,7 +26,6 @@ logger.setLevel(logging.INFO)
 
 
 class DsstoxBatchSearch(Resource):
-
     def post(self, jobId="000000100000011"):
         """
         dsstox batch earch handler.
@@ -43,11 +42,7 @@ class DsstoxBatchSearch(Resource):
         if search_by == "mass":
             accuracy = args["accuracy"]
             if accuracy is None:
-                return jsonify(
-                    {
-                        "Error": "If searching by mass, the 'accuracy' parameter must be provided in ppm"
-                    }
-                )
+                return jsonify({"Error": "If searching by mass, the 'accuracy' parameter must be provided in ppm"})
             result = self.mass_search(query, accuracy, dbconn)
             dbconn.close()
         elif search_by == "formula":
@@ -75,9 +70,11 @@ class DsstoxBatchSearch(Resource):
                 expocast_comptox_link as "EXPOCAST", nhanes_comptox_link as "NHANES", 
                 patent_count AS "PATENT_COUNT", literature_count AS "LITERATURE_COUNT", pubmed_count AS "PUBMED_COUNT",
                 source_count AS "SOURCE_COUNT",
+                positive AS "POSITIVE_MODE", positive_proba AS "POSITIVE_MODE_AMENABILITY_PREDICTION",
+                negative AS "NEGATIVE MODE", negative_proba AS "NEGATIVE_MODE_AMENABILITY_PREDICTION",
                 round(assay_count_active/assay_count_total*100,2) as "TOXCAST_PERCENT_ACTIVE", 
                 assay_count_active || '/' || assay_count_total as "TOXCAST_NUMBER_OF_ASSAYS/TOTAL"
-                FROM ms1_batch_search_050725_am
+                FROM ms1_batch_search_050725_am_ap
                 where msr_monoisotopic_mass BETWEEN """
                 + str(min_mass)
                 + """ AND """
@@ -87,8 +84,7 @@ class DsstoxBatchSearch(Resource):
             results = pd.concat([results, pd.read_sql(sql, dbconn)])
         logger.info("=========== Search complete ===========")
         results["MASS_DIFFERENCE"] = abs(
-            results["INPUT"].astype(float)
-            - results["MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT"].astype(float)
+            results["INPUT"].astype(float) - results["MONOISOTOPIC_MASS_INDIVIDUAL_COMPONENT"].astype(float)
         )
         results["FOUND_BY"] = "Monoisotopic Mass"
         results = results.sort_values(by=["INPUT", "SOURCE_COUNT"], ascending=[True, False])
